@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>乗換案内</title>
+<style>
+  :root {
+    --ink: #0f1117;
+    --ink-sub: #4a4f5e;
+    --ink-mute: #8a8fa0;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --rail: #1a56e8;
+    --rail-light: #e8eefb;
+    --subway: #e02020;
+    --bus: #16a34a;
+    --walk: #8a8fa0;
+    --accent: #1a56e8;
+    --accent-light: #e8eefb;
+    --border: #e2e5ed;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-inner {
+    max-width: 720px; margin: 0 auto;
+    padding: 0 16px;
+    display: flex; align-items: center; gap: 12px;
+    height: 52px;
+  }
+  .logo {
+    font-size: 17px; font-weight: 700; color: var(--accent);
+    letter-spacing: -0.3px; flex-shrink: 0;
+  }
+  .tabs {
+    display: flex; gap: 4px; margin-left: auto;
+  }
+  .tab-btn {
+    padding: 6px 14px;
+    border: none; background: none;
+    font-size: 13px; font-weight: 500; color: var(--ink-sub);
+    border-radius: 999px; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .tab-btn.active {
+    background: var(--rail-light); color: var(--accent);
+  }
+
+  /* ── Main ── */
+  main {
+    max-width: 720px; margin: 0 auto;
+    padding: 20px 16px 48px;
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 12px; font-weight: 600; color: var(--ink-mute);
+    letter-spacing: .06em; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  /* ── Search Form ── */
+  .station-input-wrap {
+    position: relative; margin-bottom: 10px;
+  }
+  .station-label {
+    font-size: 11px; font-weight: 600; color: var(--ink-mute);
+    letter-spacing: .05em; margin-bottom: 4px; display: block;
+  }
+  .station-input {
+    width: 100%; padding: 11px 14px;
+    border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 15px; font-family: inherit; color: var(--ink);
+    background: var(--bg); outline: none;
+    transition: border-color .15s;
+  }
+  .station-input:focus { border-color: var(--accent); background: var(--surface); }
+  .suggest-list {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); box-shadow: var(--shadow);
+    z-index: 50; overflow: hidden; display: none;
+  }
+  .suggest-list.open { display: block; }
+  .suggest-item {
+    padding: 10px 14px; cursor: pointer;
+    font-size: 14px; display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+    transition: background .1s;
+  }
+  .suggest-item:last-child { border-bottom: none; }
+  .suggest-item:hover, .suggest-item.focused { background: var(--rail-light); }
+  .suggest-kind {
+    font-size: 10px; font-weight: 600; padding: 2px 6px;
+    border-radius: 4px; background: var(--surface2); color: var(--ink-mute);
+    flex-shrink: 0;
+  }
+
+  .swap-btn {
+    display: flex; align-items: center; justify-content: center;
+    margin: 6px auto; width: 32px; height: 32px;
+    border: 1.5px solid var(--border); border-radius: 50%;
+    background: var(--surface); cursor: pointer; color: var(--ink-sub);
+    font-size: 16px; transition: border-color .15s;
+  }
+  .swap-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .options-row {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .options-row select {
+    flex: 1; min-width: 130px;
+    padding: 9px 10px;
+    border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg); color: var(--ink);
+    font-size: 14px; font-family: inherit; outline: none;
+  }
+  .search-btn {
+    width: 100%; margin-top: 14px;
+    padding: 13px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: opacity .15s;
+  }
+  .search-btn:hover { opacity: .88; }
+  .search-btn:disabled { opacity: .5; cursor: default; }
+
+  /* ── Journey Results ── */
+  .journey-card {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); margin-bottom: 12px;
+    overflow: hidden; cursor: pointer;
+    border: 1.5px solid transparent;
+    transition: border-color .15s;
+  }
+  .journey-card:hover { border-color: var(--accent); }
+  .journey-card.recommended { border-color: var(--accent); }
+  .journey-header {
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .journey-time {
+    font-size: 22px; font-weight: 700; color: var(--ink);
+    white-space: nowrap;
+  }
+  .journey-dep-arr {
+    font-size: 13px; color: var(--ink-sub); white-space: nowrap;
+  }
+  .journey-meta {
+    margin-left: auto; text-align: right; flex-shrink: 0;
+  }
+  .journey-dur {
+    font-size: 15px; font-weight: 600; color: var(--ink);
+  }
+  .journey-transfer {
+    font-size: 12px; color: var(--ink-mute);
+  }
+  .rec-badge {
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px;
+    background: var(--accent); color: #fff;
+    margin-bottom: 4px; display: inline-block;
+  }
+  .journey-legs {
+    padding: 0 18px 14px;
+    display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+  }
+  .leg-chip {
+    font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px;
+    color: #fff; white-space: nowrap;
+  }
+  .leg-walk { background: var(--walk); font-weight: 500; }
+  .leg-sep { color: var(--ink-mute); font-size: 14px; }
+  .journey-detail {
+    border-top: 1px solid var(--border);
+    padding: 14px 18px; display: none;
+  }
+  .journey-detail.open { display: block; }
+  .leg-row {
+    display: flex; gap: 12px; margin-bottom: 12px;
+  }
+  .leg-line {
+    display: flex; flex-direction: column; align-items: center; flex-shrink: 0;
+    width: 20px;
+  }
+  .leg-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid; flex-shrink: 0;
+  }
+  .leg-bar { flex: 1; width: 2px; background: currentColor; }
+  .leg-info { flex: 1; }
+  .leg-station { font-size: 14px; font-weight: 600; }
+  .leg-route { font-size: 12px; color: var(--ink-sub); margin: 2px 0; }
+  .leg-time { font-size: 12px; color: var(--ink-mute); }
+  .fare-row {
+    font-size: 13px; color: var(--ink-sub);
+    padding-top: 10px; border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  /* ── Departure Board ── */
+  .departure-search-row {
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  .departure-search-row .station-input-wrap { flex: 1; margin-bottom: 0; }
+  .near-btn {
+    padding: 11px 14px;
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); cursor: pointer;
+    font-size: 13px; color: var(--ink-sub); white-space: nowrap;
+    transition: border-color .15s;
+  }
+  .near-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .dep-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  .dep-table th {
+    font-size: 11px; color: var(--ink-mute); font-weight: 600;
+    text-align: left; padding: 6px 0; border-bottom: 1px solid var(--border);
+    letter-spacing: .04em;
+  }
+  .dep-table td {
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 14px; vertical-align: middle;
+  }
+  .dep-table tr:last-child td { border-bottom: none; }
+  .dep-route-chip {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px; color: #fff;
+    margin-right: 6px;
+  }
+  .dep-time { font-size: 16px; font-weight: 700; }
+  .dep-countdown {
+    font-size: 12px; color: var(--ink-mute); margin-top: 1px;
+  }
+  .dep-headsign { font-size: 13px; color: var(--ink-sub); }
+
+  /* ── Nearby Panel ── */
+  .nearby-card {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 16px 18px;
+    margin-bottom: 10px; cursor: pointer;
+    border: 1.5px solid transparent; transition: border-color .15s;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .nearby-card:hover { border-color: var(--accent); }
+  .nearby-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; background: var(--rail-light); flex-shrink: 0;
+  }
+  .nearby-name { font-size: 15px; font-weight: 600; }
+  .nearby-dist { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
+  .nearby-routes { font-size: 12px; color: var(--ink-sub); margin-top: 3px; }
+
+  /* ── Utility ── */
+  .empty {
+    text-align: center; padding: 40px 20px;
+    color: var(--ink-mute); font-size: 14px;
+  }
+  .empty-icon { font-size: 36px; margin-bottom: 10px; }
+  .loading {
+    text-align: center; padding: 32px;
+    color: var(--ink-mute); font-size: 14px;
+  }
+  .spinner {
+    display: inline-block; width: 22px; height: 22px;
+    border: 2.5px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .7s linear infinite; margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    background: #fef2f2; border: 1px solid #fecaca;
+    color: #b91c1c; border-radius: var(--radius-sm);
+    padding: 10px 14px; font-size: 13px; margin-top: 12px;
+  }
+
+  .section-title {
+    font-size: 17px; font-weight: 700;
+    margin-bottom: 14px; color: var(--ink);
+  }
+
+  @media (max-width: 480px) {
+    .journey-time { font-size: 18px; }
+    .options-row select { min-width: 100px; }
+    .tabs .tab-btn { padding: 6px 10px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">🚃 乗換案内</div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('plan')">乗換</button>
+      <button class="tab-btn" onclick="switchTab('departures')">発車板</button>
+      <button class="tab-btn" onclick="switchTab('nearby')">現在地</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ▼ 乗換検索 Panel -->
+  <div id="panel-plan" class="panel active">
+    <div class="card">
+      <div class="card-title">出発地・目的地</div>
+
+      <div class="station-input-wrap" id="from-wrap">
+        <span class="station-label">出発</span>
+        <input class="station-input" id="from-input" placeholder="駅名・場所を入力" autocomplete="off">
+        <div class="suggest-list" id="from-suggest"></div>
+      </div>
+
+      <button class="swap-btn" onclick="swapStations()" title="出発・到着を入れ替え">⇅</button>
+
+      <div class="station-input-wrap" id="to-wrap">
+        <span class="station-label">到着</span>
+        <input class="station-input" id="to-input" placeholder="駅名・場所を入力" autocomplete="off">
+        <div class="suggest-list" id="to-suggest"></div>
+      </div>
+
+      <div class="options-row">
+        <select id="search-type">
+          <option value="departure">出発時刻</option>
+          <option value="arrival">到着時刻</option>
+          <option value="first">始発</option>
+          <option value="last">終電</option>
+        </select>
+        <select id="avoid-modes">
+          <option value="">全交通機関</option>
+          <option value="bus">鉄道のみ（バス除外）</option>
+          <option value="rail,subway,tram">バスのみ</option>
+        </select>
+      </div>
+
+      <button class="search-btn" id="plan-btn" onclick="searchJourneys()">検索</button>
+      <div id="plan-error"></div>
+    </div>
+
+    <div id="plan-results"></div>
+  </div>
+
+  <!-- ▼ 発車板 Panel -->
+  <div id="panel-departures" class="panel">
+    <div class="card">
+      <div class="card-title">駅を選択</div>
+      <div class="departure-search-row">
+        <div class="station-input-wrap">
+          <input class="station-input" id="dep-station-input" placeholder="駅名を入力" autocomplete="off">
+          <div class="suggest-list" id="dep-suggest"></div>
+        </div>
+        <button class="near-btn" onclick="loadNearbyForDepartures()">📍 現在地</button>
+      </div>
+    </div>
+    <div id="dep-results"></div>
+  </div>
+
+  <!-- ▼ 現在地 Panel -->
+  <div id="panel-nearby" class="panel">
+    <div class="card">
+      <div class="card-title">近くの駅・停留所</div>
+      <button class="search-btn" style="margin-top:0" onclick="loadNearby()">📍 現在地から探す</button>
+    </div>
+    <div id="nearby-results"></div>
+  </div>
+
+</main>
+
+<script>
+const API = 'https://api.transit.ls8h.com';
+
+// ─── Tab ───────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ─── Station Autocomplete ──────────────────────────
+let fromEndpoint = null, fromLabel = '';
+let toEndpoint = null, toLabel = '';
+let depEndpoint = null;
+
+function setupSuggest(inputId, suggestId, onSelect) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(suggestId);
+  let timer, items = [], focusIdx = -1;
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (!q) { list.classList.remove('open'); return; }
+    timer = setTimeout(async () => {
+      const res = await fetch(`${API}/api/v1/places/suggest?q=${encodeURIComponent(q)}&limit=8`);
+      const data = await res.json();
+      items = data.places || [];
+      focusIdx = -1;
+      renderList();
+    }, 200);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (!list.classList.contains('open')) return;
+    if (e.key === 'ArrowDown') { focusIdx = Math.min(focusIdx + 1, items.length - 1); renderList(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { focusIdx = Math.max(focusIdx - 1, 0); renderList(); e.preventDefault(); }
+    else if (e.key === 'Enter' && focusIdx >= 0) { selectItem(items[focusIdx]); e.preventDefault(); }
+    else if (e.key === 'Escape') { list.classList.remove('open'); }
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !list.contains(e.target)) list.classList.remove('open');
+  });
+
+  function renderList() {
+    list.innerHTML = '';
+    if (!items.length) { list.classList.remove('open'); return; }
+    items.forEach((item, i) => {
+      const div = document.createElement('div');
+      div.className = 'suggest-item' + (i === focusIdx ? ' focused' : '');
+      const kindMap = { station: '駅', stop: 'バス停', place: '施設', address: '住所' };
+      div.innerHTML = `<span class="suggest-kind">${kindMap[item.kind] || item.kind}</span><span>${item.name}</span>`;
+      div.addEventListener('mousedown', () => selectItem(item));
+      list.appendChild(div);
+    });
+    list.classList.add('open');
+  }
+
+  function selectItem(item) {
+    input.value = item.name;
+    list.classList.remove('open');
+    onSelect(item.endpoint, item.name);
+  }
+}
+
+setupSuggest('from-input', 'from-suggest', (ep, lbl) => { fromEndpoint = ep; fromLabel = lbl; });
+setupSuggest('to-input', 'to-suggest', (ep, lbl) => { toEndpoint = ep; toLabel = lbl; });
+setupSuggest('dep-station-input', 'dep-suggest', (ep, lbl) => {
+  depEndpoint = ep;
+  if (ep.startsWith('geo:')) {
+    showError('dep-results', '駅またはバス停を選択してください');
+    return;
+  }
+  loadDepartures(ep, lbl);
+});
+
+// ─── Swap ──────────────────────────────────────────
+function swapStations() {
+  const fi = document.getElementById('from-input');
+  const ti = document.getElementById('to-input');
+  [fi.value, ti.value] = [ti.value, fi.value];
+  [fromEndpoint, toEndpoint] = [toEndpoint, fromEndpoint];
+  [fromLabel, toLabel] = [toLabel, fromLabel];
+}
+
+// ─── Journey Search ────────────────────────────────
+async function searchJourneys() {
+  const errEl = document.getElementById('plan-error');
+  const results = document.getElementById('plan-results');
+  errEl.innerHTML = '';
+
+  if (!fromEndpoint) { errEl.innerHTML = '<div class="error-msg">出発地を入力してください</div>'; return; }
+  if (!toEndpoint) { errEl.innerHTML = '<div class="error-msg">目的地を入力してください</div>'; return; }
+
+  const type = document.getElementById('search-type').value;
+  const avoidModes = document.getElementById('avoid-modes').value;
+
+  const btn = document.getElementById('plan-btn');
+  btn.disabled = true;
+  results.innerHTML = '<div class="loading"><span class="spinner"></span>検索中...</div>';
+
+  try {
+    let url = `${API}/api/v1/guidance/plan?from=${encodeURIComponent(fromEndpoint)}&to=${encodeURIComponent(toEndpoint)}&type=${type}&numItineraries=5&fromLabel=${encodeURIComponent(fromLabel)}&toLabel=${encodeURIComponent(toLabel)}`;
+    if (avoidModes) url += `&avoidModes=${encodeURIComponent(avoidModes)}`;
+
+    const res = await fetch(url);
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || '経路が見つかりませんでした'); }
+    const data = await res.json();
+    renderJourneys(data);
+  } catch(e) {
+    results.innerHTML = '';
+    errEl.innerHTML = `<div class="error-msg">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function formatTime(secs, tz) {
+  const t = new Date(0);
+  // secs is seconds from midnight of service date
+  // We construct display from modulo
+  const s = ((secs % 86400) + 86400) % 86400;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function formatDuration(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0) return `${h}時間${m}分`;
+  return `${m}分`;
+}
+
+function modeColor(mode, colorHex) {
+  if (colorHex) return '#' + colorHex.replace('#','');
+  const map = { rail:'#1a56e8', subway:'#e02020', bus:'#16a34a', tram:'#9333ea', ferry:'#0ea5e9' };
+  return map[mode] || '#64748b';
+}
+
+function renderJourneys(data) {
+  const results = document.getElementById('plan-results');
+  if (!data.options || !data.options.length) {
+    results.innerHTML = '<div class="empty"><div class="empty-icon">🚫</div>経路が見つかりませんでした</div>';
+    return;
+  }
+
+  const tz = data.timezone;
+  let html = `<div class="section-title">${data.from.name} → ${data.to.name}</div>`;
+
+  data.options.forEach((opt, idx) => {
+    const j = opt.journey;
+    const dep = formatTime(j.departureSecs, tz);
+    const arr = formatTime(j.arrivalSecs, tz);
+    const dur = formatDuration(j.durationSecs);
+    const transfer = j.transferCount === 0 ? '乗換なし' : `乗換${j.transferCount}回`;
+    const rec = opt.recommended;
+    const fare = j.fare ? `${j.fare.ic || j.fare.ticket}円` : '';
+
+    // Build legs chips
+    let legsHtml = '';
+    j.legs.forEach((leg, li) => {
+      if (leg.kind === 'walk') {
+        const wSecs = leg.arrivalSecs - leg.departureSecs;
+        if (wSecs > 60) legsHtml += `<span class="leg-chip leg-walk">🚶${Math.round(wSecs/60)}分</span>`;
+        if (li < j.legs.length - 1) legsHtml += `<span class="leg-sep">›</span>`;
+      } else {
+        const color = modeColor(leg.mode, leg.color);
+        legsHtml += `<span class="leg-chip" style="background:${color}">${leg.routeName}</span>`;
+        if (li < j.legs.length - 1) legsHtml += `<span class="leg-sep">›</span>`;
+      }
+    });
+
+    // Build detail legs
+    let detailHtml = '';
+    j.legs.forEach(leg => {
+      if (leg.kind === 'walk') {
+        const wSecs = leg.arrivalSecs - leg.departureSecs;
+        detailHtml += `
+          <div class="leg-row">
+            <div class="leg-line" style="color:${modeColor('walk','')}">
+              <div class="leg-dot" style="border-color:currentColor"></div>
+              <div class="leg-bar"></div>
+            </div>
+            <div class="leg-info">
+              <div class="leg-station">${leg.from.name}</div>
+              <div class="leg-route">🚶 徒歩 ${Math.round(wSecs/60)}分</div>
+              <div class="leg-time">${formatTime(leg.departureSecs,tz)} → ${formatTime(leg.arrivalSecs,tz)}</div>
+            </div>
+          </div>`;
+      } else {
+        const color = modeColor(leg.mode, leg.color);
+        detailHtml += `
+          <div class="leg-row">
+            <div class="leg-line" style="color:${color}">
+              <div class="leg-dot" style="border-color:currentColor"></div>
+              <div class="leg-bar"></div>
+            </div>
+            <div class="leg-info">
+              <div class="leg-station">${leg.from.name}${leg.from.platformCode ? ' (' + leg.from.platformCode + '番線)' : ''}</div>
+              <div class="leg-route" style="color:${color}">● ${leg.routeName}${leg.headsign ? ' → ' + leg.headsign : ''}</div>
+              <div class="leg-time">${formatTime(leg.departureSecs,tz)} 発 → ${formatTime(leg.arrivalSecs,tz)} 着</div>
+            </div>
+          </div>
+          <div class="leg-row">
+            <div class="leg-line" style="color:${color}">
+              <div class="leg-dot" style="border-color:currentColor"></div>
+            </div>
+            <div class="leg-info">
+              <div class="leg-station">${leg.to.name}${leg.to.platformCode ? ' (' + leg.to.platformCode + '番線)' : ''}</div>
+            </div>
+          </div>`;
+      }
+    });
+    if (fare) detailHtml += `<div class="fare-row">💴 運賃 ${fare}</div>`;
+
+    html += `
+      <div class="journey-card${rec ? ' recommended' : ''}" onclick="toggleDetail(this)">
+        <div class="journey-header">
+          <div>
+            ${rec ? '<div><span class="rec-badge">おすすめ</span></div>' : ''}
+            <div class="journey-time">${dep} 発</div>
+            <div class="journey-dep-arr">→ ${arr} 着</div>
+          </div>
+          <div class="journey-meta">
+            <div class="journey-dur">${dur}</div>
+            <div class="journey-transfer">${transfer}</div>
+          </div>
+        </div>
+        <div class="journey-legs">${legsHtml}</div>
+        <div class="journey-detail">${detailHtml}</div>
+      </div>`;
+  });
+
+  results.innerHTML = html;
+}
+
+function toggleDetail(card) {
+  const detail = card.querySelector('.journey-detail');
+  detail.classList.toggle('open');
+}
+
+// ─── Departures ────────────────────────────────────
+async function loadNearbyForDepartures() {
+  const results = document.getElementById('dep-results');
+  results.innerHTML = '<div class="loading"><span class="spinner"></span>現在地を取得中...</div>';
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    const res = await fetch(`${API}/api/v1/places/reverse?lat=${lat}&lon=${lon}&limit=5&radiusMeters=400`);
+    const data = await res.json();
+    const stations = (data.places || []).filter(p => p.kind === 'station' || p.kind === 'stop');
+    if (!stations.length) { results.innerHTML = '<div class="empty"><div class="empty-icon">🏙</div>近くに駅が見つかりませんでした</div>'; return; }
+    loadDepartures(stations[0].endpoint, stations[0].name);
+    document.getElementById('dep-station-input').value = stations[0].name;
+  }, err => {
+    results.innerHTML = '<div class="empty"><div class="empty-icon">📍</div>位置情報が取得できませんでした</div>';
+  });
+}
+
+async function loadDepartures(endpoint, name) {
+  const results = document.getElementById('dep-results');
+  results.innerHTML = '<div class="loading"><span class="spinner"></span>発車情報を取得中...</div>';
+
+  try {
+    // endpoint is feedId:stopId
+    const stationId = endpoint;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    const date = now.toISOString().slice(0,10).replace(/-/g,'');
+
+    const res = await fetch(`${API}/api/v1/stations/${encodeURIComponent(stationId)}/departures?date=${date}&time=${hh}:${mm}&limit=30`);
+    if (!res.ok) throw new Error('発車情報の取得に失敗しました');
+    const data = await res.json();
+
+    const deps = data.departures || [];
+    if (!deps.length) {
+      results.innerHTML = '<div class="empty"><div class="empty-icon">🚉</div>発車情報がありません</div>';
+      return;
+    }
+
+    const tz = data.timezone;
+    const nowSecs = now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds();
+
+    let html = `<div class="card"><div class="card-title">${name} 発車案内</div>
+      <table class="dep-table">
+        <thead><tr><th>路線</th><th>方面</th><th>発車</th></tr></thead>
+        <tbody>`;
+
+    deps.forEach(dep => {
+      const color = modeColor(dep.mode, dep.color);
+      const timeStr = formatTime(dep.departureSecs, tz);
+      const diffSecs = dep.departureSecs - nowSecs;
+      let countdown = '';
+      if (diffSecs < 0) countdown = '発車済';
+      else if (diffSecs < 60) countdown = 'まもなく';
+      else countdown = `あと${Math.floor(diffSecs/60)}分`;
+
+      html += `<tr>
+        <td><span class="dep-route-chip" style="background:${color}">${dep.routeName || dep.mode}</span></td>
+        <td class="dep-headsign">${dep.headsign || '—'}</td>
+        <td><div class="dep-time">${timeStr}</div><div class="dep-countdown">${countdown}</div></td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+    results.innerHTML = html;
+  } catch(e) {
+    results.innerHTML = `<div class="error-msg">${e.message}</div>`;
+  }
+}
+
+// ─── Nearby ────────────────────────────────────────
+async function loadNearby() {
+  const results = document.getElementById('nearby-results');
+  results.innerHTML = '<div class="loading"><span class="spinner"></span>現在地を取得中...</div>';
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    results.innerHTML = '<div class="loading"><span class="spinner"></span>近くの駅を検索中...</div>';
+
+    try {
+      const res = await fetch(`${API}/api/v1/places/reverse?lat=${lat}&lon=${lon}&limit=8&radiusMeters=500`);
+      const data = await res.json();
+      const places = (data.places || []).filter(p => p.kind === 'station' || p.kind === 'stop');
+
+      if (!places.length) {
+        results.innerHTML = '<div class="empty"><div class="empty-icon">🏙</div>近くに駅・停留所が見つかりませんでした<br><small>（半径500m以内）</small></div>';
+        return;
+      }
+
+      let html = `<div class="section-title">近くの駅・停留所</div>`;
+      places.forEach(p => {
+        const kindIcon = p.kind === 'station' ? '🚉' : '🚌';
+        const dist = p.distanceMeters < 1000 ? `${Math.round(p.distanceMeters)}m` : `${(p.distanceMeters/1000).toFixed(1)}km`;
+        html += `
+          <div class="nearby-card" onclick="selectNearbyStation('${p.endpoint}', '${p.name.replace(/'/g,"\\'")}')">
+            <div class="nearby-icon">${kindIcon}</div>
+            <div>
+              <div class="nearby-name">${p.name}</div>
+              <div class="nearby-dist">📍 ${dist}</div>
+            </div>
+          </div>`;
+      });
+
+      results.innerHTML = html;
+    } catch(e) {
+      results.innerHTML = '<div class="error-msg">近くの駅の取得に失敗しました</div>';
+    }
+  }, err => {
+    results.innerHTML = '<div class="empty"><div class="empty-icon">📍</div>位置情報へのアクセスを許可してください</div>';
+  });
+}
+
+function selectNearbyStation(endpoint, name) {
+  // Switch to departures tab and load
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-departures').classList.add('active');
+  document.querySelectorAll('.tab-btn')[1].classList.add('active');
+  document.getElementById('dep-station-input').value = name;
+  loadDepartures(endpoint, name);
+}
+
+function showError(containerId, msg) {
+  document.getElementById(containerId).innerHTML = `<div class="error-msg">${msg}</div>`;
+}
+
+// ─── Enter key on search ───────────────────────────
+document.getElementById('from-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('to-input').focus(); });
+document.getElementById('to-input').addEventListener('keydown', e => { if(e.key==='Enter') searchJourneys(); });
+</script>
+</body>
+</html>
